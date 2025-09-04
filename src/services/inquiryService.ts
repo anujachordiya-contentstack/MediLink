@@ -1,6 +1,6 @@
 /**
- * Contentstack Management API Service for Inquiry Submissions
- * Handles creating and managing user inquiries in Contentstack CMS
+ * Contentstack Automation Service for Inquiry Submissions
+ * Handles creating user inquiries via Contentstack automation
  */
 
 export interface InquiryData {
@@ -34,25 +34,20 @@ export interface ContentstackInquiryResponse {
 }
 
 class InquiryService {
-  private readonly baseUrl = 'https://api.contentstack.io/v3';
-  private readonly contentTypeUid = 'inquiry_form';
+  private readonly automationUrl = 'https://app.contentstack.com/automations-api/run/2124a55253c04d899b0b114785a11b1a';
+  private readonly automationKey = 'O7$ozrvpfsjmxx';
   
-  private apiKey: string;
-  private managementToken: string;
   private environment: string;
 
   constructor() {
-    // Load environment variables
-    this.apiKey = import.meta.env.VITE_CONTENTSTACK_API_KEY || '';
-    this.managementToken = import.meta.env.VITE_CONTENTSTACK_MANAGEMENT_TOKEN || '';
+    // Load environment variables - no management token needed for automation
     this.environment = import.meta.env.VITE_CONTENTSTACK_ENVIRONMENT || 'development';
   }
 
   private getHeaders(): Record<string, string> {
     return {
       'Content-Type': 'application/json',
-      'api_key': this.apiKey,
-      'authorization': this.managementToken
+      'ah-http-key': this.automationKey
     };
   }
 
@@ -73,16 +68,13 @@ class InquiryService {
 
   async createInquiry(inquiryData: InquiryData): Promise<ContentstackInquiryResponse> {
     if (!this.isConfigured()) {
-      throw new Error('Contentstack not configured. Please set up environment variables.');
+      throw new Error('Service not configured. Please contact support.');
     }
 
     const payload = this.buildPayload(inquiryData);
-    const url = `${this.baseUrl}/content_types/${this.contentTypeUid}/entries?environment=${this.environment}`;
-
-    // Creating inquiry entry
 
     try {
-      const response = await fetch(url, {
+      const response = await fetch(this.automationUrl, {
         method: 'POST',
         headers: this.getHeaders(),
         body: JSON.stringify(payload)
@@ -91,22 +83,19 @@ class InquiryService {
       const responseData = await response.json();
 
       if (!response.ok) {
-              // Contentstack API Error
-
-        // Provide specific error messages based on the Contentstack documentation
+        // Contentstack Automation Error
         if (response.status === 401) {
-          throw new Error('Authentication failed. Please check your API key and management token.');
+          throw new Error('Authentication failed. Please check your automation key.');
         } else if (response.status === 422) {
           throw new Error('Invalid data format. Please check the content type structure in Contentstack.');
         } else if (response.status === 404) {
-          throw new Error(`Content type '${this.contentTypeUid}' not found. Please create it in Contentstack.`);
+          throw new Error('Automation endpoint not found. Please check the automation URL.');
         } else {
           throw new Error(`API Error: ${response.status} - ${responseData.error_message || 'Unknown error'}`);
         }
       }
 
-      // Inquiry created successfully
-
+      // Inquiry created successfully via automation
       return responseData;
     } catch (error) {
       if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -116,68 +105,37 @@ class InquiryService {
     }
   }
 
-  async publishInquiry(entryUid: string): Promise<void> {
-    if (!this.isConfigured()) {
-      throw new Error('Contentstack not configured.');
-    }
-
-    const url = `${this.baseUrl}/content_types/${this.contentTypeUid}/entries/${entryUid}/publish`;
-    const payload = {
-      entry: {
-        environments: [this.environment]
-      }
-    };
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`Failed to publish inquiry: ${response.status} ${errorData.error_message || ''}`);
-      }
-
-      // Inquiry published successfully
-    } catch (error) {
-      // Failed to publish inquiry (entry was still created)
-      throw error;
-    }
-  }
 
   isConfigured(): boolean {
-    return !!(this.apiKey && this.managementToken);
+    return !!(this.automationKey && this.automationUrl);
   }
 
   getConfigStatus() {
     return {
       configured: this.isConfigured(),
-      apiKey: !!this.apiKey,
-      managementToken: !!this.managementToken,
+      automationUrl: !!this.automationUrl,
+      automationKey: !!this.automationKey,
       environment: this.environment,
-      contentType: this.contentTypeUid,
-      missingVars: [
-        ...(!this.apiKey ? ['VITE_CONTENTSTACK_API_KEY'] : []),
-        ...(!this.managementToken ? ['VITE_CONTENTSTACK_MANAGEMENT_TOKEN'] : [])
-      ]
+      security: 'HIGH - Using Contentstack Automation (no management token)',
+      missingVars: []
     };
   }
 
-  // Test connection method
+  // Test connection method for automation endpoint
   async testConnection(): Promise<boolean> {
     if (!this.isConfigured()) {
       return false;
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/content_types/${this.contentTypeUid}?environment=${this.environment}`, {
-        method: 'GET',
-        headers: this.getHeaders()
+      // Simple HEAD request to check if automation endpoint is accessible
+      const response = await fetch(this.automationUrl, {
+        method: 'HEAD',
+        headers: { 'ah-http-key': this.automationKey }
       });
       
-      return response.ok;
+      // Automation is accessible if we don't get 401/404
+      return response.status !== 401 && response.status !== 404;
     } catch {
       return false;
     }

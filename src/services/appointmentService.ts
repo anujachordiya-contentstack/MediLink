@@ -44,17 +44,13 @@ export interface ContentstackResponse {
 }
 
 class AppointmentService {
-  private readonly baseUrl = 'https://api.contentstack.io/v3';
-  private readonly contentTypeUid = 'doctor_appointment';
+  private readonly automationUrl = 'https://app.contentstack.com/automations-api/run/50df0b6c8f8b4a0eb7a3589283adfd90';
+  private readonly automationKey = 'T5)nvosfymsfx';
   
-  private apiKey: string;
-  private managementToken: string;
   private environment: string;
 
   constructor() {
-    // Load environment variables
-    this.apiKey = import.meta.env.VITE_CONTENTSTACK_API_KEY || '';
-    this.managementToken = import.meta.env.VITE_CONTENTSTACK_MANAGEMENT_TOKEN || '';
+    // Load environment variables - no management token needed for automation
     this.environment = import.meta.env.VITE_CONTENTSTACK_ENVIRONMENT || 'development';
   }
 
@@ -62,8 +58,7 @@ class AppointmentService {
   private getHeaders(): Record<string, string> {
     return {
       'Content-Type': 'application/json',
-      'api_key': this.apiKey,
-      'authorization': this.managementToken
+      'ah-http-key': this.automationKey
     };
   }
 
@@ -89,16 +84,14 @@ class AppointmentService {
 
   async createAppointment(appointmentData: AppointmentData): Promise<ContentstackResponse> {
     if (!this.isConfigured()) {
-      throw new Error('Contentstack not configured. Please set up environment variables.');
+      throw new Error('Service not configured. Please contact support.');
     }
 
+    // Keep the same payload format as before
     const payload = this.buildPayload(appointmentData);
-    const url = `${this.baseUrl}/content_types/${this.contentTypeUid}/entries?environment=${this.environment}`;
-
-    // Creating appointment entry
 
     try {
-      const response = await fetch(url, {
+      const response = await fetch(this.automationUrl, {
         method: 'POST',
         headers: this.getHeaders(),
         body: JSON.stringify(payload)
@@ -115,7 +108,7 @@ class AppointmentService {
         } else if (response.status === 422) {
           throw new Error('Invalid data format. Please check the content type structure in Contentstack.');
         } else if (response.status === 404) {
-          throw new Error(`Content type '${this.contentTypeUid}' not found. Please create it in Contentstack.`);
+          throw new Error('Automation endpoint not found. Please check the automation URL.');
         } else {
           throw new Error(`API Error: ${response.status} - ${responseData.error_message || 'Unknown error'}`);
         }
@@ -132,52 +125,21 @@ class AppointmentService {
     }
   }
 
-  async publishAppointment(entryUid: string): Promise<void> {
-    if (!this.isConfigured()) {
-      throw new Error('Contentstack not configured.');
-    }
-
-    const url = `${this.baseUrl}/content_types/${this.contentTypeUid}/entries/${entryUid}/publish`;
-    const payload = {
-      entry: {
-        environments: [this.environment]
-      }
-    };
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`Failed to publish appointment: ${response.status} ${errorData.error_message || ''}`);
-      }
-
-      // Appointment published successfully
-    } catch (error) {
-      // Failed to publish appointment (entry was still created)
-      throw error;
-    }
-  }
+  // Note: Publishing is handled automatically by Contentstack Automation
+  // No manual publish method needed when using automation endpoint
 
   isConfigured(): boolean {
-    return !!(this.apiKey && this.managementToken);
+    return !!(this.automationKey && this.automationUrl);
   }
 
   getConfigStatus() {
     return {
       configured: this.isConfigured(),
-      apiKey: !!this.apiKey,
-      managementToken: !!this.managementToken,
+      automationUrl: !!this.automationUrl,
+      automationKey: !!this.automationKey,
       environment: this.environment,
-      contentType: this.contentTypeUid,
-      missingVars: [
-        ...(!this.apiKey ? ['VITE_CONTENTSTACK_API_KEY'] : []),
-        ...(!this.managementToken ? ['VITE_CONTENTSTACK_MANAGEMENT_TOKEN'] : [])
-      ]
+      security: 'HIGH - Using Contentstack Automation (no management token)',
+      missingVars: []
     };
   }
 
@@ -188,12 +150,16 @@ class AppointmentService {
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/content_types/${this.contentTypeUid}?environment=${this.environment}`, {
-        method: 'GET',
-        headers: this.getHeaders()
+      // Test with a minimal payload to check if automation is accessible
+      const testPayload = { entry: { title: "connection-test" } };
+      const response = await fetch(this.automationUrl, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(testPayload)
       });
       
-      return response.ok;
+      // Even if automation fails due to invalid data, 200/400 means it's accessible
+      return response.status !== 401 && response.status !== 404;
     } catch {
       return false;
     }

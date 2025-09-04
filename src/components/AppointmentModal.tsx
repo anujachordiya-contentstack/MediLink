@@ -329,19 +329,10 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({
         consultationFee: consultationFee
       };
 
-      // Create appointment
-      const result = await appointmentService.createAppointment(appointmentData);
-      
-      // Try to publish (optional)
-      if (result.entry?.uid) {
-        try {
-          await appointmentService.publishAppointment(result.entry.uid);
-        } catch (publishError) {
-          console.warn('Appointment created but not published:', publishError);
-        }
-      }
+      // Create appointment via automation (handles creation + publishing automatically)
+      await appointmentService.createAppointment(appointmentData);
 
-      // Success
+      // Success - automation handles both creation and publishing
       setSubmitStatus('success');
       setStatusMessage('Appointment booked successfully! You will receive a confirmation email shortly.');
       

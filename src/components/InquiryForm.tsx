@@ -44,17 +44,10 @@ const InquiryForm: React.FC = () => {
 
 
 
-      // Submit to Contentstack
+      // Submit to Contentstack automation (handles creation + publishing automatically)
       const response = await inquiryService.createInquiry(inquiryData);
 
-      // Try to publish the entry (optional)
-      try {
-        await inquiryService.publishInquiry(response.entry.uid);
-      } catch (publishError) {
-        console.warn('Failed to publish inquiry, but entry was created:', publishError);
-      }
-
-      // Success
+      // Success - automation handles both creation and publishing
       setSubmitStatus('success');
       setSubmitMessage('Your inquiry has been submitted successfully! We will contact you soon.');
       
